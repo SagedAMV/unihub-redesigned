@@ -11,3 +11,5 @@
 .cxx
 local.properties
 push.sh
+design-proposals/build/
+.gradle/

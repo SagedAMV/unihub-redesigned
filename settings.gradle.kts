@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "UniHub"
 include(":app")
+include(":design-proposals")

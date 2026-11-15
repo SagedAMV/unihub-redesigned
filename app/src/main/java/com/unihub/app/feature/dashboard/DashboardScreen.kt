@@ -1,57 +1,48 @@
 package com.unihub.app.feature.dashboard
 
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.EventNote
-import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.EventAvailable
 import androidx.compose.material.icons.outlined.Folder
-import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.TaskAlt
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -65,24 +56,25 @@ import com.unihub.app.core.common.NextLectureResolver
 import com.unihub.app.data.local.entity.ExamEntity
 import com.unihub.app.data.local.entity.LectureEntity
 import com.unihub.app.data.local.entity.TaskEntity
-import com.unihub.app.ui.components.EmptyState
-import com.unihub.app.ui.components.SectionHeader
-import com.unihub.app.ui.components.StatCard
-import com.unihub.app.ui.components.TintChip
 import com.unihub.app.ui.components.UiMessagesHost
 import com.unihub.app.ui.navigation.PlannerTab
 import com.unihub.app.ui.theme.SemanticDanger
 import com.unihub.app.ui.theme.SemanticInfo
 import com.unihub.app.ui.theme.SemanticSuccess
 import com.unihub.app.ui.theme.SemanticWarning
-import kotlinx.coroutines.delay
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
- * الشاشة الرئيسية: لقطة اليوم العملية — محاضرات اليوم، مهام مستحقة، امتحانات قريبة،
- * وإحصاءات سريعة. تصميم هادئ ببطاقات واضحة بدل الأنيميشن المفرط في المرجع.
+ * الشاشة الرئيسية الجديدة — «مركز اليوم» (تصميم الهاتف العمودي المعتمد).
+ *
+ * التحول عن التصميم السابق: بدل بطاقة اللقطة المقسومة نصفين وقوائم متتابعة
+ * طويلة، سرد رأسي واضح الترتيب: ماذا يحدث «الآن» في بطاقة بطلة متدرجة تُقرأ
+ * من نظرة، ثم لمحة رقمية مدمجة (أقراص إحصاء قابلة للنقر تغني عن صف الإجراءات
+ * السريعة المكرر)، ثم «خط اليوم» الزمني الذي يدمج محاضرات اليوم ومهامه
+ * المستحقة في مسار واحد يجيب سؤال «ماذا بعد؟»، وأخيراً عدّادات الامتحانات
+ * القادمة — كل ذلك ضمن طية واحدة بلا تمرير على أغلب الأجهزة.
  */
 @Composable
 fun DashboardScreen(
@@ -98,7 +90,6 @@ fun DashboardScreen(
     val todayLectures by viewModel.todayLectures.collectAsStateWithLifecycle()
     val dueSoonTasks by viewModel.dueSoonTasks.collectAsStateWithLifecycle()
     val upcomingExams by viewModel.upcomingExams.collectAsStateWithLifecycle()
-    val nearestTask by viewModel.nearestTask.collectAsStateWithLifecycle()
     val pendingTaskCount by viewModel.pendingTaskCount.collectAsStateWithLifecycle()
     val upcomingExamCount by viewModel.upcomingExamCount.collectAsStateWithLifecycle()
     val noteCount by viewModel.noteCount.collectAsStateWithLifecycle()
@@ -113,582 +104,653 @@ fun DashboardScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 18.dp)
-                .padding(bottom = 24.dp)
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // الترويسة: تحية + التاريخ + الإعدادات
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 20.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = Formatters.greeting(),
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    Text(
-                        text = LocalDate.now().format(
-                            DateTimeFormatter.ofPattern("EEEE، d MMMM yyyy", Locale("ar"))
-                        ),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                IconButton(onClick = onOpenSettings) {
-                    Icon(Icons.Outlined.Settings, contentDescription = "الإعدادات")
-                }
-            }
+            HeaderRow(onOpenSettings)
 
-            Spacer(Modifier.height(16.dp))
-
-            // بطاقة «لقطة اليوم»: النصف الأيسر لجدول المحاضرات وتوقيتها، والنصف
-            // الأيمن لأقرب امتحان وأقرب مهمة مطلوبة، يفصل بينهما خط رأسي — وتدخل
-            // الشاشة بأنيميشن متدرج هادئ. أقرب امتحان من رأس قائمة الامتحانات
-            // المرتبة تصاعدياً، وأقرب مهمة من استعلام مفرد مخصص (ماضٍ أو مستقبل)
-            DaySnapshotCard(
+            NowNextHero(
                 next = nextLecture,
                 todayLectures = todayLectures,
-                nearestExam = upcomingExams.firstOrNull(),
-                nearestTask = nearestTask,
-                onOpenSchedule = { onOpenPlanner(PlannerTab.SCHEDULE) },
+                onOpenSchedule = { onOpenPlanner(PlannerTab.SCHEDULE) }
+            )
+
+            // أقراص الإحصاءات قابلة للنقر (اختصارات لوجهاتها) فتغني عن صف
+            // إجراءات سريعة منفصل — أقل واجهة تحقق الغرض
+            StatsRow(
+                pendingTaskCount = pendingTaskCount,
+                upcomingExamCount = upcomingExamCount,
+                noteCount = noteCount,
+                fileCount = fileCount,
+                onOpenTasks = { onOpenPlanner(PlannerTab.TASKS) },
                 onOpenExams = { onOpenPlanner(PlannerTab.EXAMS) },
+                onOpenNotes = { onOpenPlanner(PlannerTab.NOTES) },
+                onOpenFiles = { onOpenFiles(null) }
+            )
+
+            DayTimelineCard(
+                todayLectures = todayLectures,
+                dueTasks = dueSoonTasks.filterNot { it.isDone },
+                currentLectureId = nextLecture
+                    ?.takeIf { it.dayOffset == 0 }
+                    ?.lecture
+                    ?.id,
+                onOpenSchedule = { onOpenPlanner(PlannerTab.SCHEDULE) },
                 onOpenTasks = { onOpenPlanner(PlannerTab.TASKS) }
             )
 
-            Spacer(Modifier.height(16.dp))
-
-            // الإحصاءات السريعة
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                StatCard(
-                    icon = Icons.Outlined.TaskAlt,
-                    value = pendingTaskCount.toString(),
-                    label = "مهمة معلقة",
-                    tint = SemanticWarning,
-                    onClick = { onOpenPlanner(PlannerTab.TASKS) },
-                    modifier = Modifier.weight(1f)
-                )
-                StatCard(
-                    icon = Icons.Outlined.EventAvailable,
-                    value = upcomingExamCount.toString(),
-                    label = "امتحان قادم",
-                    tint = SemanticDanger,
-                    onClick = { onOpenPlanner(PlannerTab.EXAMS) },
-                    modifier = Modifier.weight(1f)
-                )
-                StatCard(
-                    icon = Icons.Outlined.Description,
-                    value = noteCount.toString(),
-                    label = "ملاحظة",
-                    tint = SemanticInfo,
-                    onClick = { onOpenPlanner(PlannerTab.NOTES) },
-                    modifier = Modifier.weight(1f)
-                )
-                StatCard(
-                    icon = Icons.Outlined.Folder,
-                    value = fileCount.toString(),
-                    label = "ملف",
-                    tint = SemanticSuccess,
-                    onClick = { onOpenFiles(null) },
-                    modifier = Modifier.weight(1f)
+            if (upcomingExams.isNotEmpty()) {
+                UpcomingExamsCard(
+                    exams = upcomingExams.take(3),
+                    onOpenExams = { onOpenPlanner(PlannerTab.EXAMS) }
                 )
             }
+        }
+    }
+}
 
-            // محاضرات اليوم
-            SectionHeader(
-                title = "محاضرات اليوم",
-                action = {
-                    FilledTonalButton(onClick = { onOpenPlanner(PlannerTab.SCHEDULE) }) {
-                        Text("الجدول")
-                    }
-                }
+/** الترويسة: التحية والتاريخ + زر إعدادات دائري بنبرة سطح ناعمة */
+@Composable
+private fun HeaderRow(onOpenSettings: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = Formatters.greeting(),
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
-            if (todayLectures.isEmpty()) {
-                EmptyState(
-                    icon = Icons.AutoMirrored.Outlined.MenuBook,
-                    title = "لا محاضرات اليوم",
-                    subtitle = "استمتع بيومك أو أضف محاضراتك من الجدول الأسبوعي"
-                )
-            } else {
-                todayLectures.forEach { lecture ->
-                    TodayLectureRow(lecture)
-                    Spacer(Modifier.height(8.dp))
-                }
-            }
-
-            // المهام المستحقة
-            SectionHeader(
-                title = "مهام مستحقة",
-                action = {
-                    FilledTonalButton(onClick = { onOpenPlanner(PlannerTab.TASKS) }) {
-                        Text("الكل")
-                    }
-                }
+            Text(
+                text = LocalDate.now().format(
+                    DateTimeFormatter.ofPattern("EEEE، d MMMM yyyy", Locale("ar"))
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1
             )
-            if (dueSoonTasks.isEmpty()) {
-                EmptyState(
-                    icon = Icons.Outlined.CheckCircle,
-                    title = "لا مهام مستحقة الآن",
-                    subtitle = "كل شيء تحت السيطرة — أضف مهمة جديدة من تبويب المهام"
+        }
+        Surface(
+            onClick = onOpenSettings,
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
+            modifier = Modifier.size(38.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = Icons.Outlined.Settings,
+                    contentDescription = "الإعدادات",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
                 )
-            } else {
-                dueSoonTasks.forEach { task ->
-                    DueTaskRow(
-                        task = task,
-                        onToggle = { viewModel.toggleTask(task) }
-                    )
-                    Spacer(Modifier.height(8.dp))
-                }
-            }
-
-            // الامتحانات القادمة
-            SectionHeader(
-                title = "امتحانات قادمة",
-                action = {
-                    FilledTonalButton(onClick = { onOpenPlanner(PlannerTab.EXAMS) }) {
-                        Text("الكل")
-                    }
-                }
-            )
-            if (upcomingExams.isEmpty()) {
-                EmptyState(
-                    icon = Icons.Outlined.School,
-                    title = "لا امتحانات قريبة",
-                    subtitle = "أضف امتحاناتك لتصلك تذكيرات قبلها بيوم وساعة"
-                )
-            } else {
-                upcomingExams.forEach { exam ->
-                    UpcomingExamRow(exam)
-                    Spacer(Modifier.height(8.dp))
-                }
-            }
-
-            // إجراءات سريعة
-            SectionHeader(title = "إجراء سريع")
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                FilledTonalButton(
-                    onClick = { onOpenPlanner(PlannerTab.TASKS) },
-                    modifier = Modifier.weight(1f)
-                ) { Text("مهمة جديدة") }
-                FilledTonalButton(
-                    onClick = { onOpenPlanner(PlannerTab.NOTES) },
-                    modifier = Modifier.weight(1f)
-                ) { Text("ملاحظة جديدة") }
-                FilledTonalButton(
-                    onClick = { onOpenFiles(null) },
-                    modifier = Modifier.weight(1f)
-                ) { Text("استيراد ملف") }
             }
         }
     }
 }
 
 /**
- * البطاقة العلوية للشاشة الرئيسية — «لقطة اليوم» العملية.
- *
- * مقسومة نصفين يفصل بينهما خط فاصل رأسي:
- * - النصف الأيسر: جدول المحاضرات وتوقيتها — المحاضرة الأقرب مع حالتها الحية
- *   (عدّ تنازلي بالدقائق من تدفق المستودع) وتحته حتى محاضرتين من بقية اليوم.
- *   الضغط على النصف يفتح الجدول الأسبوعي.
- * - النصف الأيمن: أقرب امتحان قادم وأقرب مهمة مطلوبة، وكل صف اختصار مباشر
- *   لتبويبه. الامتحان من رأس قائمة الامتحانات المرتبة تصاعدياً بالتاريخ من
- *   DAO، والمهمة من استعلام Room مفرد (LIMIT 1) يعيد أقرب مهمة غير منجزة
- *   بتاريخ استحقاق — ماضٍ أو مستقبل — فلا تختفي عند غياب مهام اليوم.
- *
- * أنيميشن الدخول: تظهر البطاقة أولاً (تلاشٍ مع ارتفاع خفيف)، ثم ينمو الخط
- * الفاصل من منتصفه وينزلق النصفان من الخارج نحوه بتتابع سريع هادئ —
- * دخول سلس ينسجم مع هوية التطبيق المريحة للعين بدل الأنيميشن المفرط.
+ * البطاقة البطلة «الآن والتالي»: تدرج عميق بهوية التطبيق يحمل المحاضرة الجارية/التالية
+ * بحجم يقرأ من نظرة، وشارة زجاجية فاتحة في المقدمة بحالتها الحية، وتحتها محاضرتا
+ * اليوم التاليتان خلف فاصل زجاجي رفيع. عند فراغ الجدول تتحول لدعوة لبنائه.
  */
 @Composable
-private fun DaySnapshotCard(
+private fun NowNextHero(
     next: NextLecture?,
     todayLectures: List<LectureEntity>,
-    nearestExam: ExamEntity?,
-    nearestTask: TaskEntity?,
-    onOpenSchedule: () -> Unit,
-    onOpenExams: () -> Unit,
-    onOpenTasks: () -> Unit
+    onOpenSchedule: () -> Unit
 ) {
+    val primary = MaterialTheme.colorScheme.primary
+    val deepPrimary = lerp(primary, Color.Black, 0.22f)
     val onPrimary = MaterialTheme.colorScheme.onPrimary
 
-    // حالتا الدخول: البطاقة أولاً ثم النصفان والفاصل بعد تأخير قصير
-    var cardEntered by remember { mutableStateOf(false) }
-    var halvesEntered by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        cardEntered = true
-        delay(160)
-        halvesEntered = true
-    }
-
-    val cardAlpha by animateFloatAsState(
-        targetValue = if (cardEntered) 1f else 0f,
-        animationSpec = tween(durationMillis = 450),
-        label = "card-alpha"
-    )
-    val cardOffsetY by animateFloatAsState(
-        targetValue = if (cardEntered) 0f else 26f,
-        animationSpec = tween(durationMillis = 450, easing = FastOutSlowInEasing),
-        label = "card-offset-y"
-    )
-    val leftAlpha by animateFloatAsState(
-        targetValue = if (halvesEntered) 1f else 0f,
-        animationSpec = tween(durationMillis = 380),
-        label = "left-alpha"
-    )
-    val leftOffsetX by animateFloatAsState(
-        targetValue = if (halvesEntered) 0f else -20f,
-        animationSpec = tween(durationMillis = 380, easing = FastOutSlowInEasing),
-        label = "left-offset-x"
-    )
-    val rightAlpha by animateFloatAsState(
-        targetValue = if (halvesEntered) 1f else 0f,
-        animationSpec = tween(durationMillis = 380),
-        label = "right-alpha"
-    )
-    val rightOffsetX by animateFloatAsState(
-        targetValue = if (halvesEntered) 0f else 20f,
-        animationSpec = tween(durationMillis = 380, easing = FastOutSlowInEasing),
-        label = "right-offset-x"
-    )
-    val dividerGrow by animateFloatAsState(
-        targetValue = if (halvesEntered) 1f else 0f,
-        animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
-        label = "divider-grow"
-    )
-
-    ElevatedCard(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .graphicsLayer {
-                alpha = cardAlpha
-                translationY = cardOffsetY
-            },
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.primary
-        )
-    ) {
-        // في RTL يُصفّ الطفل الأول يميناً: نصف الاستحقاقات أولاً (يمين
-        // البطاقة) ونصف المحاضرات أخيراً (يسارها) — فيكون التقسيم كما يراه
-        // المستخدم: محاضرات | فاصل | استحقاقات.
-        //
-        // height(IntrinsicSize.Min) يمنح الصف ارتفاعاً محدداً (ارتفاع أطول نصف)،
-        // فيعمل fillMaxHeight() للفاصل الرأسي داخل الشاشة القابلة للتمرير
-        // ويتساوى النصفان ارتفاعاً — هذا هو النمط المعياري في Compose إذ لا
-        // يوجد محاذاة «تمديد»، وبدونه ينهار الفاصل إلى ارتفاع صفر.
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(IntrinsicSize.Min)
-        ) {
-            DeadlinesHalf(
-                nearestExam = nearestExam,
-                nearestTask = nearestTask,
-                onOpenExams = onOpenExams,
-                onOpenTasks = onOpenTasks,
-                modifier = Modifier
-                    .weight(1f)
-                    .graphicsLayer {
-                        alpha = rightAlpha
-                        translationX = rightOffsetX
-                    }
+            .clip(RoundedCornerShape(26.dp))
+            .background(
+                Brush.linearGradient(
+                    listOf(primary, deepPrimary),
+                    start = Offset(x = 330f, y = 0f),
+                    end = Offset(x = 0f, y = 420f)
+                )
             )
-
-            // الخط الفاصل الرأسي ينمو من منتصفه نحو الطرفين
-            Box(
-                modifier = Modifier
-                    .padding(vertical = 16.dp)
-                    .width(1.dp)
-                    .fillMaxHeight()
-                    .graphicsLayer {
-                        scaleY = dividerGrow
-                        alpha = dividerGrow
-                    }
-                    .background(onPrimary.copy(alpha = 0.28f))
-            )
-
-            LecturesHalf(
-                next = next,
-                todayLectures = todayLectures,
-                onOpenSchedule = onOpenSchedule,
-                modifier = Modifier
-                    .weight(1f)
-                    .graphicsLayer {
-                        alpha = leftAlpha
-                        translationX = leftOffsetX
-                    }
-            )
-        }
-    }
-}
-
-/**
- * النصف الأيسر من بطاقة اللقطة: جدول المحاضرات وتوقيتها.
- *
- * يبرز المحاضرة الأقرب (اسمها وسطر حالتها الحي: «جارية الآن» أو «اليوم 10:30
- * · بعد 25 دقيقة» أو «غداً · تبدأ 09:00») وتحته حتى محاضرتين من بقية اليوم
- * بصيغة مدمجة «الوقت — المادة». النصف كله اختصار للجدول الأسبوعي. عند فراغ
- * الجدول تظهر حالة مصغرة تدعو لبنائه بدل مساحة صامتة.
- */
-@Composable
-private fun LecturesHalf(
-    next: NextLecture?,
-    todayLectures: List<LectureEntity>,
-    onOpenSchedule: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val onPrimary = MaterialTheme.colorScheme.onPrimary
-
-    Column(
-        modifier = modifier
             .clickable(
                 onClickLabel = "عرض الجدول الأسبوعي",
                 role = Role.Button,
                 onClick = onOpenSchedule
             )
-            .padding(start = 10.dp, end = 14.dp, top = 14.dp, bottom = 14.dp)
     ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
         ) {
-            Icon(
-                imageVector = Icons.Outlined.Schedule,
-                contentDescription = null,
-                modifier = Modifier.size(16.dp),
-                tint = onPrimary.copy(alpha = 0.85f)
-            )
-            Text(
-                text = "المحاضرات",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Bold,
-                color = onPrimary.copy(alpha = 0.85f)
-            )
-        }
-
-        Spacer(Modifier.height(12.dp))
-
-        // فرع الفراغ يُكتب هنا بصيغة شرطية كاملة (وليس خروجاً مبكراً):
-        // لامدا محتوى Column ليست دالة سطر-مضمّن، فلا يجوز داخلها `return`
-        // عارٍ ولا شيء غير `if/else` يترجم هنا بشكل سليم.
-        if (next == null) {
-            Text(
-                text = "جدولك فارغ",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = onPrimary
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = "أضف محاضراتك من تبويب الجدول لتظهر مواعيدها هنا",
-                style = MaterialTheme.typography.bodySmall,
-                color = onPrimary.copy(alpha = 0.75f)
-            )
-        } else {
-            // المحاضرة الأقرب: المادة ثم سطر الحالة الحي
-            Text(
-                text = next.lecture.subject,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = onPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(Modifier.height(3.dp))
-            Text(
-                text = lectureStatusLabel(next),
-                style = MaterialTheme.typography.bodySmall,
-                color = onPrimary.copy(alpha = 0.8f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            // بقية محاضرات اليوم (حتى اثنتين) بصيغة مدمجة: الوقت ثم المادة
-            todayLectures
-                .filter { it.id != next.lecture.id }
-                .take(2)
-                .forEach { lecture ->
-                    Spacer(Modifier.height(10.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = DateFormats.formatTime12(lecture.timeFrom),
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = onPrimary.copy(alpha = 0.9f)
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = lecture.subject,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = onPrimary.copy(alpha = 0.8f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-        }
-    }
-}
-
-/**
- * النصف الأيمن من بطاقة اللقطة: أقرب امتحان قادم وأقرب مهمة مطلوبة.
- * كل صف اختصار مباشر لتبويبه (الامتحانات/المهام)، وعند الغياب يظهر سطر
- * هادئ يحفظ توازن التقسيم. الشارات تستعمل لون onPrimary شفافاً لتبقى
- * منسجمة مع خلفية البطاقة الأساسية.
- */
-@Composable
-private fun DeadlinesHalf(
-    nearestExam: ExamEntity?,
-    nearestTask: TaskEntity?,
-    onOpenExams: () -> Unit,
-    onOpenTasks: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val onPrimary = MaterialTheme.colorScheme.onPrimary
-
-    Column(
-        modifier = modifier.padding(start = 14.dp, end = 10.dp, top = 14.dp, bottom = 14.dp)
-    ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.EventAvailable,
-                contentDescription = null,
-                modifier = Modifier.size(16.dp),
-                tint = onPrimary.copy(alpha = 0.85f)
-            )
-            Text(
-                text = "الأقرب موعداً",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Bold,
-                color = onPrimary.copy(alpha = 0.85f)
-            )
-        }
-
-        Spacer(Modifier.height(12.dp))
-
-        // أقرب امتحان — القائمة مرتبة تصاعدياً بالتاريخ من DAO
-        if (nearestExam != null) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(
-                        onClickLabel = "عرض الامتحانات",
-                        role = Role.Button,
-                        onClick = onOpenExams
-                    )
-                    .padding(vertical = 5.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            if (next == null) {
+                // حالة الجدول الفارغ — بطاقة دعوة لبناء الجدول بدل مساحة صامتة
                 Icon(
-                    imageVector = Icons.Outlined.School,
+                    imageVector = Icons.Outlined.Schedule,
                     contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                    tint = onPrimary.copy(alpha = 0.9f)
+                    tint = onPrimary.copy(alpha = 0.8f),
+                    modifier = Modifier.size(30.dp)
                 )
-                Spacer(Modifier.width(8.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = nearestExam.subject,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = onPrimary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = listOfNotNull(
-                            nearestExam.type.label,
-                            nearestExam.room.takeIf { it.isNotBlank() }?.let { "قاعة $it" }
-                        ).joinToString(" · "),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = onPrimary.copy(alpha = 0.75f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                Spacer(Modifier.width(6.dp))
-                TintChip(
-                    text = dayCountLabel(nearestExam.daysRemaining),
-                    containerColor = onPrimary.copy(alpha = 0.16f),
-                    contentColor = onPrimary
-                )
-            }
-        } else {
-            Text(
-                text = "لا امتحانات قريبة",
-                style = MaterialTheme.typography.bodySmall,
-                color = onPrimary.copy(alpha = 0.7f),
-                modifier = Modifier.padding(vertical = 5.dp)
-            )
-        }
-
-        Spacer(Modifier.height(4.dp))
-
-        // أقرب مهمة مطلوبة — استعلام مفرد من DAO: أقرب استحقاق غير منجز
-        // (المتأخرة تتصدر لأن تاريخها أقدم)، أياً كان يوم استحقاقها
-        if (nearestTask != null) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(
-                        onClickLabel = "عرض المهام",
-                        role = Role.Button,
-                        onClick = onOpenTasks
-                    )
-                    .padding(vertical = 5.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.TaskAlt,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                    tint = onPrimary.copy(alpha = 0.9f)
-                )
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.height(10.dp))
                 Text(
-                    text = nearestTask.title,
-                    style = MaterialTheme.typography.titleSmall,
+                    text = "جدولك فارغ",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = onPrimary
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "أضف محاضراتك من تبويب الجدول لتظهر مواعيد يومك هنا",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = onPrimary.copy(alpha = 0.8f)
+                )
+            } else {
+                GlassChip(lectureStatusLabel(next), emphasized = true)
+
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    text = next.lecture.subject,
+                    style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = onPrimary,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
+                    overflow = TextOverflow.Ellipsis
                 )
-                Spacer(Modifier.width(6.dp))
-                TintChip(
-                    text = if (nearestTask.isOverdue) "متأخرة"
-                    else DateFormats.friendlyDueLabel(nearestTask.dueDate) ?: "مطلوبة",
-                    containerColor = onPrimary.copy(alpha = 0.16f),
-                    contentColor = onPrimary
-                )
+                Spacer(Modifier.height(4.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    HeroMeta(Icons.Outlined.Schedule, lectureTimeRange(next.lecture))
+                    HeroMeta(null, next.lecture.room.takeIf { it.isNotBlank() }?.let { "قاعة $it" })
+                    HeroMeta(null, next.lecture.doctor.takeIf { it.isNotBlank() })
+                }
+
+                val upcoming = todayLectures
+                    .filter { it.id != next.lecture.id }
+                    .sortedBy { DateFormats.parseTimeOrNull(it.timeFrom)?.let { t -> t.hour * 60 + t.minute } }
+                    .take(2)
+
+                if (upcoming.isNotEmpty()) {
+                    Spacer(Modifier.height(14.dp))
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(onPrimary.copy(alpha = 0.18f))
+                    )
+                    Spacer(Modifier.height(10.dp))
+
+                    upcoming.forEach { lecture ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = DateFormats.formatTime12(lecture.timeFrom),
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = onPrimary.copy(alpha = 0.95f)
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Box(
+                                Modifier
+                                    .size(5.dp)
+                                    .clip(CircleShape)
+                                    .background(onPrimary.copy(alpha = 0.5f))
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Text(
+                                text = lecture.subject,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = onPrimary.copy(alpha = 0.85f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (lecture.room.isNotBlank()) {
+                                Text(
+                                    text = lecture.room,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = onPrimary.copy(alpha = 0.6f),
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+                }
             }
-        } else {
+        }
+    }
+}
+
+/** سطر الحالة الحي للمحاضرة الأقرب — الأوقات 12-ساعية بصيغة ص/م */
+private fun lectureStatusLabel(next: NextLecture): String = when {
+    next.status == NextLecture.Status.ONGOING && next.lecture.timeTo.isNotBlank() ->
+        "جارية الآن · تنتهي ${DateFormats.formatTime12(next.lecture.timeTo)}"
+    next.status == NextLecture.Status.ONGOING -> "جارية الآن"
+    next.dayOffset == 0 ->
+        "تبدأ ${DateFormats.formatTime12(next.lecture.timeFrom)} · " +
+            NextLectureResolver.formatCountdown(next)
+    else -> "${NextLectureResolver.dayLabel(next.dayOffset)} · " +
+        "تبدأ ${DateFormats.formatTime12(next.lecture.timeFrom)}"
+}
+
+private fun lectureTimeRange(lecture: LectureEntity): String =
+    if (lecture.timeTo.isNotBlank()) {
+        "${DateFormats.formatTime12(lecture.timeFrom)} – ${DateFormats.formatTime12(lecture.timeTo)}"
+    } else {
+        DateFormats.formatTime12(lecture.timeFrom)
+    }
+
+/** شارة زجاجية على البطاقة المتدرجة — لون onPrimary شفاف فوق التدرج */
+@Composable
+private fun GlassChip(text: String, emphasized: Boolean) {
+    val onPrimary = MaterialTheme.colorScheme.onPrimary
+    val container = if (emphasized) onPrimary.copy(alpha = 0.20f)
+    else onPrimary.copy(alpha = 0.12f)
+    Surface(shape = RoundedCornerShape(50), color = container) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = if (emphasized) FontWeight.SemiBold else FontWeight.Medium,
+            color = onPrimary,
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
+private fun HeroMeta(icon: androidx.compose.ui.graphics.vector.ImageVector?, text: String?) {
+    if (text == null) return
+    val onPrimary = MaterialTheme.colorScheme.onPrimary
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        if (icon != null) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = onPrimary.copy(alpha = 0.75f),
+                modifier = Modifier.size(14.dp)
+            )
+            Spacer(Modifier.width(4.dp))
+        }
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelMedium,
+            color = onPrimary.copy(alpha = 0.85f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+/** صف الإحصاءات: أقراص مدمجة بلا حدود — أخف من بطاقات الإحصاء الأربع القديمة */
+@Composable
+private fun StatsRow(
+    pendingTaskCount: Int,
+    upcomingExamCount: Int,
+    noteCount: Int,
+    fileCount: Int,
+    onOpenTasks: () -> Unit,
+    onOpenExams: () -> Unit,
+    onOpenNotes: () -> Unit,
+    onOpenFiles: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        StatDisc(
+            value = pendingTaskCount.toString(),
+            label = "مهام معلقة",
+            tint = SemanticWarning,
+            onClick = onOpenTasks,
+            modifier = Modifier.weight(1f)
+        )
+        StatDisc(
+            value = upcomingExamCount.toString(),
+            label = "امتحان قادم",
+            tint = SemanticDanger,
+            onClick = onOpenExams,
+            modifier = Modifier.weight(1f)
+        )
+        StatDisc(
+            value = noteCount.toString(),
+            label = "ملاحظة",
+            tint = SemanticInfo,
+            onClick = onOpenNotes,
+            modifier = Modifier.weight(1f)
+        )
+        StatDisc(
+            value = fileCount.toString(),
+            label = "ملف",
+            tint = SemanticSuccess,
+            onClick = onOpenFiles,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun StatDisc(
+    value: String,
+    label: String,
+    tint: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
             Text(
-                text = "لا مهام بموعد قادم",
-                style = MaterialTheme.typography.bodySmall,
-                color = onPrimary.copy(alpha = 0.7f),
-                modifier = Modifier.padding(vertical = 5.dp)
+                text = value,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = tint
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1
             )
         }
     }
 }
 
-/** سطر الحالة الحي للمحاضرة الأقرب داخل نصف المحاضرات — الأوقات 12-ساعية بصيغة ص/م */
-private fun lectureStatusLabel(next: NextLecture): String = when {
-    next.status == NextLecture.Status.ONGOING && next.lecture.timeFrom.isNotBlank() ->
-        "جارية الآن · بدأت ${DateFormats.formatTime12(next.lecture.timeFrom)}"
-    next.status == NextLecture.Status.ONGOING -> "جارية الآن"
-    next.dayOffset == 0 ->
-        "اليوم ${DateFormats.formatTime12(next.lecture.timeFrom)} · " +
-            NextLectureResolver.formatCountdown(next)
-    else -> "${NextLectureResolver.dayLabel(next.dayOffset)} · " +
-        "تبدأ ${DateFormats.formatTime12(next.lecture.timeFrom)}"
+/** مدخل واحد في «خط اليوم» — محاضرة أو مهمة مستحقة */
+private data class TimelineEntry(
+    val title: String,
+    val trailing: String,
+    val tint: Color,
+    val isNow: Boolean,
+    val onClick: () -> Unit
+)
+
+/**
+ * «خط اليوم»: دمج محاضرات اليوم ومهامه المستحقة في مسار زمني واحد بسكة رفيعة
+ * ونقاط ملونة حسب النوع — إجابة على سؤال «ماذا بعد؟» الذي كانت تجيب عنه
+ * قائمتان منفصلتان في التصميم السابق، والمتأخرة تظهر بلون الخطر فوراً.
+ */
+@Composable
+private fun DayTimelineCard(
+    todayLectures: List<LectureEntity>,
+    dueTasks: List<TaskEntity>,
+    currentLectureId: Long?,
+    onOpenSchedule: () -> Unit,
+    onOpenTasks: () -> Unit
+) {
+    // المحاضرات بترتيب وقتها ثم المهام المستحقة (المتأخرة أولاً)
+    val entries = buildList {
+        todayLectures
+            .sortedBy { DateFormats.parseTimeOrNull(it.timeFrom)?.let { t -> t.hour * 60 + t.minute } }
+            .forEach { lecture ->
+                add(
+                    TimelineEntry(
+                        title = lecture.subject,
+                        trailing = DateFormats.formatTime12(lecture.timeFrom),
+                        tint = MaterialTheme.colorScheme.primary,
+                        isNow = lecture.id == currentLectureId,
+                        onClick = onOpenSchedule
+                    )
+                )
+            }
+        dueTasks
+            .sortedWith(compareByDescending<TaskEntity> { it.isOverdue }.thenBy { it.dueDate })
+            .forEach { task ->
+                add(
+                    TimelineEntry(
+                        title = task.title,
+                        trailing = if (task.isOverdue) "متأخرة"
+                        else DateFormats.friendlyDueLabel(task.dueDate) ?: "مطلوبة",
+                        tint = if (task.isOverdue) SemanticDanger else SemanticWarning,
+                        isNow = false,
+                        onClick = onOpenTasks
+                    )
+                )
+            }
+    }.take(5)
+
+    Surface(
+        shape = RoundedCornerShape(22.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "خط اليوم",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = "عرض الكل",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+
+            if (entries.isEmpty()) {
+                Text(
+                    text = "يومك صافٍ — لا محاضرات ولا مهام مستحقة اليوم",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 10.dp)
+                )
+            } else {
+                entries.forEachIndexed { index, entry ->
+                    Row {
+                        // سكة زمنية رفيعة: نقطة يصلها خط بالتالية
+                        Column(
+                            modifier = Modifier.width(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier.size(16.dp)
+                            ) {
+                                if (entry.isNow) {
+                                    Box(
+                                        Modifier
+                                            .size(16.dp)
+                                            .clip(CircleShape)
+                                            .background(entry.tint.copy(alpha = 0.25f))
+                                    )
+                                    Box(
+                                        Modifier
+                                            .size(7.dp)
+                                            .clip(CircleShape)
+                                            .background(entry.tint)
+                                    )
+                                } else {
+                                    Box(
+                                        Modifier
+                                            .size(7.dp)
+                                            .clip(CircleShape)
+                                            .background(entry.tint.copy(alpha = 0.75f))
+                                    )
+                                }
+                            }
+                            if (index < entries.lastIndex) {
+                                Box(
+                                    Modifier
+                                        .width(2.dp)
+                                        .height(24.dp)
+                                        .background(
+                                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                                        )
+                                )
+                            }
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable(
+                                    onClickLabel = "عرض التفاصيل",
+                                    role = Role.Button,
+                                    onClick = entry.onClick
+                                )
+                                .padding(vertical = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = entry.title,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            TintPill(entry.trailing, entry.tint)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** شارة حبة (pill) بلون دلالي شفاف — النسخة المحلية من TintChip بأسلوب التصميم الجديد */
+@Composable
+private fun TintPill(text: String, tint: Color, modifier: Modifier = Modifier) {
+    Text(
+        text = text,
+        modifier = modifier
+            .background(tint.copy(alpha = 0.12f), RoundedCornerShape(50))
+            .padding(horizontal = 9.dp, vertical = 2.dp),
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.Medium,
+        color = tint,
+        maxLines = 1
+    )
+}
+
+/** بطاقة الامتحانات: عدّاد أيام بارز بجانب كل امتحان مع تمييز القريب بلون الخطر */
+@Composable
+private fun UpcomingExamsCard(
+    exams: List<ExamEntity>,
+    onOpenExams: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(22.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(
+                onClickLabel = "عرض الامتحانات",
+                role = Role.Button,
+                onClick = onOpenExams
+            )
+    ) {
+        Column(Modifier.padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "امتحانات قادمة",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = "عرض الكل",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            Spacer(Modifier.height(4.dp))
+            exams.forEach { exam ->
+                // سطر واحد لكل امتحان: المادة + شارة العد التنازلي — التفاصيل
+                // (النوع والقاعة) مكانها تبويب الامتحانات، والرئيسية للعدّ فقط
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconDisc(
+                        icon = Icons.Outlined.School,
+                        tint = if ((exam.daysRemaining ?: 99) <= 3) SemanticDanger
+                        else MaterialTheme.colorScheme.tertiary,
+                        backgroundColor = if ((exam.daysRemaining ?: 99) <= 3)
+                            SemanticDanger.copy(alpha = 0.12f)
+                        else
+                            MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.6f)
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        text = exam.subject,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TintPill(
+                        text = dayCountLabel(exam.daysRemaining),
+                        tint = if ((exam.daysRemaining ?: 99) <= 3) SemanticDanger
+                        else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** قرص أيقونة دائري بلون ناعم — بديل أرقى للمربع الملون */
+@Composable
+private fun IconDisc(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    tint: Color,
+    backgroundColor: Color
+) {
+    Box(
+        modifier = Modifier
+            .size(30.dp)
+            .clip(CircleShape)
+            .background(backgroundColor),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(16.dp)
+        )
+    }
 }
 
 /** تسمية الأيام النسبية للامتحان: اليوم / غداً / بعد يومين / بعد N أيام */
@@ -698,124 +760,4 @@ private fun dayCountLabel(days: Long?): String = when (days) {
     1L -> "غداً"
     2L -> "بعد يومين"
     else -> "بعد $days أيام"
-}
-
-@Composable
-private fun TodayLectureRow(lecture: LectureEntity) {
-    Card(modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(Modifier.width(64.dp)) {
-                Text(
-                    text = DateFormats.formatTime12(lecture.timeFrom),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                if (lecture.timeTo.isNotBlank()) {
-                    Text(
-                        text = DateFormats.formatTime12(lecture.timeTo),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(lecture.subject, style = MaterialTheme.typography.titleSmall)
-                val meta = listOfNotNull(
-                    lecture.doctor.takeIf { it.isNotBlank() },
-                    lecture.room.takeIf { it.isNotBlank() }?.let { "قاعة $it" }
-                ).joinToString(" • ")
-                if (meta.isNotBlank()) {
-                    Text(
-                        text = meta,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DueTaskRow(task: TaskEntity, onToggle: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium) {
-        Row(
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Checkbox(checked = task.isDone, onCheckedChange = { onToggle() })
-            Column(Modifier.weight(1f).padding(end = 8.dp)) {
-                Text(task.title, style = MaterialTheme.typography.titleSmall)
-                DateFormats.friendlyDueLabel(task.dueDate)?.let { label ->
-                    val overdue = task.isOverdue
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = if (overdue) SemanticDanger else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-            if (task.isOverdue) {
-                TintChip(
-                    text = "متأخرة",
-                    containerColor = SemanticDanger.copy(alpha = 0.15f),
-                    contentColor = SemanticDanger,
-                    modifier = Modifier.padding(end = 8.dp)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun UpcomingExamRow(exam: ExamEntity) {
-    // التسمية من مصدر واحد مشترك مع شارة البطاقة العلوية (dayCountLabel):
-    // كان الفرع القديم يحوّل التاريخ غير القابل للتحليل (null) إلى «اليوم»
-    // بالقسر `?: 0` وهي دلالة مضللة، بينما المصدر المشترك يعرض «قريباً».
-    // كما يُلغى هنا تكرار منطق التسمية الذي كان مكتوباً مرتين بصيغتين.
-    val days = exam.daysRemaining
-    Card(modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(exam.subject, style = MaterialTheme.typography.titleSmall)
-                Spacer(Modifier.height(2.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    TintChip(
-                        text = exam.type.label,
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                    if (exam.room.isNotBlank()) {
-                        TintChip(
-                            text = "قاعة ${exam.room}",
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-            Icon(
-                imageVector = Icons.AutoMirrored.Outlined.EventNote,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.width(6.dp))
-            Text(
-                text = dayCountLabel(days),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = if (days != null && days <= 2) SemanticDanger
-                else MaterialTheme.colorScheme.primary
-            )
-        }
-    }
 }

@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -35,6 +36,17 @@ class TasksViewModel @Inject constructor(
 
     private val allTasks = taskRepository.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** إحصاءات شاملة للمهام: (الكل، قيد التنفيذ، منجزة) — لبطاقة التقدم ورقائق المرشحات */
+    val taskStats: StateFlow<Triple<Int, Int, Int>> =
+        allTasks.map { all ->
+            Triple(all.size, all.count { !it.isDone }, all.count { it.isDone })
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), Triple(0, 0, 0))
+
+    /** عدد المهام المتأخرة — لسطر العنوان في ترويسة المهام */
+    val overdueCount: StateFlow<Int> =
+        allTasks.map { all -> all.count { it.isOverdue } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     /** القائمة المعروضة بعد تطبيق المرشح ثم البحث (العنوان والوصف) */
     val tasks: StateFlow<List<TaskEntity>> =

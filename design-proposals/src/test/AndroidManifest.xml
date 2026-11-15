@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- ثيم بلا شريط إجراءات منذ الإطلاق: PhoneWindow يقرأ سمات الثيم عند
+             إنشائه قبل أي كود اختبار، فلا يكفي إزالته بعد الإطلاق (خطأ #14) -->
+        <activity
+            android:name="com.unihub.app.design.ProposalCaptureActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.Material.NoActionBar" />
+    </application>
+</manifest>
